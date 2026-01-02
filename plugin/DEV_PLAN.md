@@ -57,6 +57,7 @@
    - `git clone --recursive` 本仓库
    - 创建 venv 并安装 MaxText 依赖（含 post-training：tunix + vllm-tpu）
    - 运行 `plugin/scripts/run_grpo_gsm8k_test.sh`
+   - **长任务用 nohup 后台跑**：日志写入 `~/qwen3_grpo_<run_name>.log`，用 `tail -n 100` 轮询查看进度
 3) 训练完成后：
    - 保存输出在 TPU VM 本地目录（默认 `~/runs/<run_name>`）
    -（可选）用 `gcloud compute tpus tpu-vm stop` 停机省成本
@@ -68,4 +69,3 @@
 - TPU VM 为**新建**，不是现有机器
 - GRPO 训练启动成功并跑完 10 steps（日志能看到 step 前进，且 `RL Training Completed Successfully!`）
 - 输出目录包含 checkpoints/tensorboard/metrics（任意一种即可证明写出）
-
