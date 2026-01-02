@@ -22,6 +22,8 @@ REPO_URL="https://github.com/${REPO_SLUG}.git"
 REPO_DIR="${REPO_DIR:-maxtext-grpo-qwen3-1.7b-plugin}"
 
 TPU_NAME="${TPU_NAME:-qwen3-1-7b-grpo-$(date +%Y%m%d-%H%M%S)}"
+TPU_CREATE_MAX_ATTEMPTS="${TPU_CREATE_MAX_ATTEMPTS:-10}"
+TPU_CREATE_SLEEP_SECONDS="${TPU_CREATE_SLEEP_SECONDS:-60}"
 
 RUN_NAME="${RUN_NAME:-qwen3-1.7b-grpo-gsm8k-10steps-$(date +%Y%m%d-%H%M%S)}"
 BASE_OUTPUT_DIRECTORY="${BASE_OUTPUT_DIRECTORY:-${HOME}/runs}"
@@ -58,26 +60,51 @@ echo "[gcloud] project=${PROJECT_ID} zone=${ZONE} tpu=${TPU_NAME} type=${TPU_TYP
 gcloud services enable compute.googleapis.com tpu.googleapis.com --project "${PROJECT_ID}" --quiet
 
 echo "[gcloud] creating TPU VM..."
-if ! gcloud compute tpus tpu-vm create "${TPU_NAME}" \
-  --project "${PROJECT_ID}" \
-  --zone "${ZONE}" \
-  --accelerator-type "${TPU_TYPE}" \
-  --version "${TPU_RUNTIME_VERSION}" \
-  ${TPU_VM_CREATE_FLAGS} \
-  --quiet; then
+TPU_NAME_BASE="${TPU_NAME}"
+TPU_CREATED="0"
+for attempt in $(seq 1 "${TPU_CREATE_MAX_ATTEMPTS}"); do
+  if [[ "${attempt}" == "1" ]]; then
+    TPU_NAME="${TPU_NAME_BASE}"
+  else
+    TPU_NAME="${TPU_NAME_BASE}-r${attempt}"
+  fi
+
+  echo "[gcloud] create attempt ${attempt}/${TPU_CREATE_MAX_ATTEMPTS}: ${TPU_NAME}"
+
+  if gcloud compute tpus tpu-vm create "${TPU_NAME}" \
+    --project "${PROJECT_ID}" \
+    --zone "${ZONE}" \
+    --accelerator-type "${TPU_TYPE}" \
+    --version "${TPU_RUNTIME_VERSION}" \
+    ${TPU_VM_CREATE_FLAGS} \
+    --quiet; then
+    TPU_CREATED="1"
+    break
+  fi
+
   if [[ -z "${TPU_VM_CREATE_FLAGS}" && "${ALLOW_SPOT_FALLBACK}" == "1" ]]; then
     echo "[warn] create failed; retrying with --spot (set ALLOW_SPOT_FALLBACK=0 to disable)"
-    gcloud compute tpus tpu-vm create "${TPU_NAME}" \
+    if gcloud compute tpus tpu-vm create "${TPU_NAME}" \
       --project "${PROJECT_ID}" \
       --zone "${ZONE}" \
       --accelerator-type "${TPU_TYPE}" \
       --version "${TPU_RUNTIME_VERSION}" \
       --spot \
-      --quiet
-  else
-    echo "[error] TPU create failed (TPU_VM_CREATE_FLAGS='${TPU_VM_CREATE_FLAGS}')" >&2
-    exit 1
+      --quiet; then
+      TPU_CREATED="1"
+      break
+    fi
   fi
+
+  if [[ "${attempt}" != "${TPU_CREATE_MAX_ATTEMPTS}" ]]; then
+    echo "[warn] create failed; sleeping ${TPU_CREATE_SLEEP_SECONDS}s before retry..."
+    sleep "${TPU_CREATE_SLEEP_SECONDS}"
+  fi
+done
+
+if [[ "${TPU_CREATED}" != "1" ]]; then
+  echo "[error] TPU create failed after ${TPU_CREATE_MAX_ATTEMPTS} attempts." >&2
+  exit 1
 fi
 
 echo "[gcloud] waiting for TPU to be ready..."
