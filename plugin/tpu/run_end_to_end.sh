@@ -8,6 +8,8 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 ZONE="${ZONE:-europe-west4-a}"
 TPU_TYPE="${TPU_TYPE:-v6e-8}"
+TPU_VM_CREATE_FLAGS="${TPU_VM_CREATE_FLAGS:-}"
+ALLOW_SPOT_FALLBACK="${ALLOW_SPOT_FALLBACK:-1}"
 
 if [[ -z "${PROJECT_ID}" ]]; then
   echo "PROJECT_ID is empty. Set PROJECT_ID env var or run: gcloud config set project <id>" >&2
@@ -32,12 +34,27 @@ echo "[gcloud] project=${PROJECT_ID} zone=${ZONE} tpu=${TPU_NAME} type=${TPU_TYP
 gcloud services enable compute.googleapis.com tpu.googleapis.com --project "${PROJECT_ID}" --quiet
 
 echo "[gcloud] creating TPU VM..."
-gcloud compute tpus tpu-vm create "${TPU_NAME}" \
+if ! gcloud compute tpus tpu-vm create "${TPU_NAME}" \
   --project "${PROJECT_ID}" \
   --zone "${ZONE}" \
   --accelerator-type "${TPU_TYPE}" \
   --version "tpu-ubuntu2204-base" \
-  --quiet
+  ${TPU_VM_CREATE_FLAGS} \
+  --quiet; then
+  if [[ -z "${TPU_VM_CREATE_FLAGS}" && "${ALLOW_SPOT_FALLBACK}" == "1" ]]; then
+    echo "[warn] create failed; retrying with --spot (set ALLOW_SPOT_FALLBACK=0 to disable)"
+    gcloud compute tpus tpu-vm create "${TPU_NAME}" \
+      --project "${PROJECT_ID}" \
+      --zone "${ZONE}" \
+      --accelerator-type "${TPU_TYPE}" \
+      --version "tpu-ubuntu2204-base" \
+      --spot \
+      --quiet
+  else
+    echo "[error] TPU create failed (TPU_VM_CREATE_FLAGS='${TPU_VM_CREATE_FLAGS}')" >&2
+    exit 1
+  fi
+fi
 
 echo "[gcloud] waiting for TPU to be ready..."
 gcloud compute tpus tpu-vm describe "${TPU_NAME}" --project "${PROJECT_ID}" --zone "${ZONE}" --format='value(state)'

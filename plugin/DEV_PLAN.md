@@ -53,6 +53,7 @@
 1) 使用 `gcloud compute tpus tpu-vm create` 创建新 TPU VM：
    - zone：`europe-west4-a`
    - accelerator：`v6e-8`
+   - 如遇到 `Insufficient capacity`，可用 `--spot`（脚本默认自动 fallback，或显式设置 `TPU_VM_CREATE_FLAGS=--spot`）
 2) 通过 `gcloud compute tpus tpu-vm ssh --command ...` 在 TPU VM 上：
    - `git clone --recursive` 本仓库
    - 创建 venv 并安装 MaxText 依赖（含 post-training：tunix + vllm-tpu）
