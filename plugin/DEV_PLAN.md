@@ -9,6 +9,7 @@
 - 训练入口仍使用上游 `train_rl.py`，但通过插件 wrapper 先打补丁再调用（见 `plugin/scripts/train_rl_with_qwen3_1p7b_hf_patch.py`）。
 - **不**向 `third_party/maxtext`（上游 MaxText 子模块）打补丁；所有新增放在 `plugin/`。
 - 训练是 smoke test：只跑 10 个 step（通过 `num_batches=10` 达到）。
+- v6e 上 `vllm-tpu` 在采样阶段可能触发 TPU runtime crash；插件默认将 rollout engine 强制切到 `vanilla` 以保证 10-step 跑通（如需恢复 vLLM：`MAXTEXT_PLUGIN_ROLLOUT_ENGINE=vllm`）。
 
 需要你本地（控制机）具备：
 - `gcloud` 已登录且项目可用（已启用 `compute.googleapis.com`、`tpu.googleapis.com`）
