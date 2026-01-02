@@ -19,8 +19,8 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
   from flax.linen import partitioning as nn_partitioning
   from tunix.rl.rollout import base_rollout
   from tunix.rl import rl_cluster as rl_cluster_lib
-  import tunix.rl.rl_utils as rl_utils
-  import tunix.rl.reshard as reshard
+  from tunix.rl import utils as rl_utils
+  from tunix.rl import reshard
 
   def patch_dataclass_init_to_ignore_unknown_kwargs(dataclass_cls, *, keep_kwargs=None) -> None:
     keep_kwargs = set(keep_kwargs or [])
