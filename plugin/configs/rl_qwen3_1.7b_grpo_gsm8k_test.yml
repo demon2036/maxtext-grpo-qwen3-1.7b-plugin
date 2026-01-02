@@ -51,7 +51,7 @@ num_epoch: 1
 # --- Faster/safer generation settings (smoke test) ---
 max_prefill_predict_length: 128
 max_target_length: 512
-kv_cache_buffer: 64
+kv_cache_buffer: 256
 
 # Keep eval short
 num_test_batches: 2
