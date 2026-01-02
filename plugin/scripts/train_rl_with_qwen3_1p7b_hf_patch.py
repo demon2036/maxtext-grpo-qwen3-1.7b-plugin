@@ -11,10 +11,19 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
   # ignore unknown kwargs for forward-compatibility.
   import inspect
 
+  import gc
+  import operator
+
+  import jax
+  from flax import nnx
+  from flax.linen import partitioning as nn_partitioning
   from tunix.rl.rollout import base_rollout
   from tunix.rl import rl_cluster as rl_cluster_lib
+  from tunix.rl import rl_utils
+  from tunix.rl import reshard
 
-  def patch_dataclass_init_to_ignore_unknown_kwargs(dataclass_cls) -> None:
+  def patch_dataclass_init_to_ignore_unknown_kwargs(dataclass_cls, *, keep_kwargs=None) -> None:
+    keep_kwargs = set(keep_kwargs or [])
     if getattr(dataclass_cls, "_maxtext_plugin_patched", False):
       return
 
@@ -24,16 +33,93 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
     original_init = dataclass_cls.__init__
 
     def patched_init(self, *args, **kwargs):
+      preserved = {k: kwargs.pop(k) for k in keep_kwargs if k in kwargs}
       for key in list(kwargs.keys()):
         if key not in supported:
           kwargs.pop(key, None)
       original_init(self, *args, **kwargs)
+      for k, v in preserved.items():
+        setattr(self, k, v)
 
     dataclass_cls.__init__ = patched_init  # type: ignore[method-assign]
     setattr(dataclass_cls, "_maxtext_plugin_patched", True)
 
   patch_dataclass_init_to_ignore_unknown_kwargs(base_rollout.RolloutConfig)
-  patch_dataclass_init_to_ignore_unknown_kwargs(rl_cluster_lib.ClusterConfig)
+  patch_dataclass_init_to_ignore_unknown_kwargs(
+      rl_cluster_lib.ClusterConfig, keep_kwargs={"role_to_logical_axis_rule"}
+  )
+
+  rollout_cluster_cls = rl_cluster_lib.RLCluster
+  if not getattr(rollout_cluster_cls, "_maxtext_plugin_patched", False):
+    original_load_model = rollout_cluster_cls._load_model
+
+    def patched_load_model(self, model_or_path, mesh, data_type=None):  # pylint: disable=missing-docstring
+      if not isinstance(model_or_path, nnx.Module):
+        return original_load_model(self, model_or_path, mesh, data_type)
+
+      model_mesh = rl_utils.get_pytree_mesh_info(nnx.state(model_or_path))
+      original_shardings = jax.tree_util.tree_map(
+          lambda x: x.sharding, nnx.state(model_or_path)
+      )
+      is_on_device = jax.tree_util.tree_reduce(
+          operator.or_,
+          jax.tree.map(
+              lambda x: x.memory_kind == self._default_memory_kind,
+              original_shardings,
+          ),
+      )
+
+      if not mesh.empty and model_mesh != mesh:
+        role_to_axis_rules = getattr(self.cluster_config, "role_to_logical_axis_rule", None) or {}
+        role_for_mesh = None
+        for role, role_mesh in getattr(self, "r2m", {}).items():
+          if role_mesh is mesh:
+            role_for_mesh = role
+            break
+        axis_rules = role_to_axis_rules.get(role_for_mesh)
+
+        graph, state = nnx.split(model_or_path)
+        if axis_rules:
+          with nn_partitioning.axis_rules(axis_rules):
+            dst_shardings = jax.tree_util.tree_map(
+                lambda x: jax.sharding.NamedSharding(
+                    mesh,
+                    x,
+                    memory_kind=self._default_memory_kind
+                    if is_on_device
+                    else "pinned_host",
+                ),
+                nnx.get_partition_spec(state),
+            )
+        else:
+          dst_shardings = jax.tree_util.tree_map(
+              lambda x: jax.sharding.NamedSharding(
+                  mesh,
+                  x,
+                  memory_kind=self._default_memory_kind
+                  if is_on_device
+                  else "pinned_host",
+              ),
+              nnx.get_partition_spec(state),
+          )
+        if data_type and data_type != jax.tree.leaves(state)[0].dtype:
+          tmp_state = jax.tree.map(lambda x: x.astype(data_type), state)
+        else:
+          tmp_state = state
+        model_or_path = nnx.merge(
+            graph, reshard.reshard_pytree(tmp_state, dst_shardings)
+        )
+        del tmp_state
+        gc.collect()
+
+      if is_on_device and self.cluster_config.offload_to_cpu:
+        graph, state = nnx.split(model_or_path)
+        new_params = rl_utils.put_params_on_memory_kind(state, "pinned_host")
+        model_or_path = nnx.merge(graph, new_params)
+      return model_or_path
+
+    rollout_cluster_cls._load_model = patched_load_model  # type: ignore[method-assign]
+    setattr(rollout_cluster_cls, "_maxtext_plugin_patched", True)
 
 
 def patch_hf_model_configs_for_qwen3_1p7b() -> None:
