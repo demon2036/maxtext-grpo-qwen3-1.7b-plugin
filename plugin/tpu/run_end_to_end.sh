@@ -140,8 +140,18 @@ gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
     export PID_FILE='${REMOTE_PID_FILE}'; \
     export DONE_FILE='${REMOTE_DONE_FILE}'; \
     nohup bash -lc 'set -euo pipefail; \
-      sudo apt-get update -y; \
-      sudo apt-get install -y git; \
+      if ! command -v git >/dev/null 2>&1; then \
+        echo \"[remote] git not found; installing (may wait for unattended-upgrades)...\"; \
+        sudo apt-get update -y || true; \
+        for attempt in \$(seq 1 60); do \
+          if sudo apt-get install -y git; then \
+            break; \
+          fi; \
+          echo \"[remote] apt-get install git failed (dpkg lock likely). retrying in 10s...\"; \
+          sleep 10; \
+        done; \
+        command -v git >/dev/null 2>&1; \
+      fi; \
       rm -rf \"\$REPO_DIR\"; \
       git clone --depth=1 --branch \"main\" --recurse-submodules \"\$REPO_URL\" \"\$REPO_DIR\"; \
       cd \"\$REPO_DIR\"; \
