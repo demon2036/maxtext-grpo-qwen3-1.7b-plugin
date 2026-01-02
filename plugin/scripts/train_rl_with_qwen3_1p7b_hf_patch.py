@@ -6,30 +6,34 @@ import transformers
 
 
 def patch_tunix_rollout_config_for_maxtext() -> None:
-  # MaxText's `train_rl.py` may pass newer rollout config kwargs that are not yet
-  # released in the latest `google-tunix` PyPI package. Patch RolloutConfig to
+  # MaxText's `train_rl.py` may pass newer Tunix kwargs that are not yet released
+  # in the latest `google-tunix` PyPI package. Patch Tunix dataclass configs to
   # ignore unknown kwargs for forward-compatibility.
   import inspect
 
   from tunix.rl.rollout import base_rollout
+  from tunix.rl import rl_cluster as rl_cluster_lib
 
-  rollout_config_cls = base_rollout.RolloutConfig
-  if getattr(rollout_config_cls, "_maxtext_plugin_patched", False):
-    return
+  def patch_dataclass_init_to_ignore_unknown_kwargs(dataclass_cls) -> None:
+    if getattr(dataclass_cls, "_maxtext_plugin_patched", False):
+      return
 
-  supported = set(inspect.signature(rollout_config_cls).parameters.keys())
-  supported.discard("self")
+    supported = set(inspect.signature(dataclass_cls).parameters.keys())
+    supported.discard("self")
 
-  original_init = rollout_config_cls.__init__
+    original_init = dataclass_cls.__init__
 
-  def patched_init(self, *args, **kwargs):
-    for key in list(kwargs.keys()):
-      if key not in supported:
-        kwargs.pop(key, None)
-    original_init(self, *args, **kwargs)
+    def patched_init(self, *args, **kwargs):
+      for key in list(kwargs.keys()):
+        if key not in supported:
+          kwargs.pop(key, None)
+      original_init(self, *args, **kwargs)
 
-  rollout_config_cls.__init__ = patched_init  # type: ignore[method-assign]
-  setattr(rollout_config_cls, "_maxtext_plugin_patched", True)
+    dataclass_cls.__init__ = patched_init  # type: ignore[method-assign]
+    setattr(dataclass_cls, "_maxtext_plugin_patched", True)
+
+  patch_dataclass_init_to_ignore_unknown_kwargs(base_rollout.RolloutConfig)
+  patch_dataclass_init_to_ignore_unknown_kwargs(rl_cluster_lib.ClusterConfig)
 
 
 def patch_hf_model_configs_for_qwen3_1p7b() -> None:
