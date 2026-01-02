@@ -5,6 +5,9 @@ import sys
 import transformers
 
 
+_TUNIX_CLUSTER_CONFIG_ROLE_AXIS_RULES_BY_ID: dict[int, dict] = {}
+
+
 def patch_tunix_rollout_config_for_maxtext() -> None:
   # MaxText's `train_rl.py` may pass newer Tunix kwargs that are not yet released
   # in the latest `google-tunix` PyPI package. Patch Tunix dataclass configs to
@@ -31,6 +34,8 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
     supported.discard("self")
 
     original_init = dataclass_cls.__init__
+    dataclass_params = getattr(dataclass_cls, "__dataclass_params__", None)
+    is_frozen = bool(getattr(dataclass_params, "frozen", False))
 
     def patched_init(self, *args, **kwargs):
       preserved = {k: kwargs.pop(k) for k in keep_kwargs if k in kwargs}
@@ -38,8 +43,13 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
         if key not in supported:
           kwargs.pop(key, None)
       original_init(self, *args, **kwargs)
-      for k, v in preserved.items():
-        setattr(self, k, v)
+      if preserved:
+        if is_frozen:
+          # ClusterConfig is frozen; stash extra data externally keyed by object id.
+          _TUNIX_CLUSTER_CONFIG_ROLE_AXIS_RULES_BY_ID[id(self)] = preserved
+        else:
+          for k, v in preserved.items():
+            setattr(self, k, v)
 
     dataclass_cls.__init__ = patched_init  # type: ignore[method-assign]
     setattr(dataclass_cls, "_maxtext_plugin_patched", True)
@@ -70,7 +80,9 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
       )
 
       if not mesh.empty and model_mesh != mesh:
-        role_to_axis_rules = getattr(self.cluster_config, "role_to_logical_axis_rule", None) or {}
+        role_to_axis_rules = _TUNIX_CLUSTER_CONFIG_ROLE_AXIS_RULES_BY_ID.get(id(self.cluster_config), {}).get(
+            "role_to_logical_axis_rule", {}
+        )
         role_for_mesh = None
         for role, role_mesh in getattr(self, "r2m", {}).items():
           if role_mesh is mesh:
