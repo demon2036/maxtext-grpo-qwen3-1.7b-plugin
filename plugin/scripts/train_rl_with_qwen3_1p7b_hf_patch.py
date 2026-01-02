@@ -63,6 +63,20 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
   if not getattr(rollout_cluster_cls, "_maxtext_plugin_patched", False):
     original_load_model = rollout_cluster_cls._load_model
 
+    def meshes_equivalent(a, b) -> bool:
+      if a is b:
+        return True
+      if getattr(a, "empty", False) and getattr(b, "empty", False):
+        return True
+      try:
+        if a.axis_names != b.axis_names:
+          return False
+        if a.shape != b.shape:
+          return False
+        return list(a.devices.flat) == list(b.devices.flat)
+      except Exception:  # pylint: disable=broad-except
+        return False
+
     def patched_load_model(self, model_or_path, mesh, data_type=None):  # pylint: disable=missing-docstring
       if not isinstance(model_or_path, nnx.Module):
         return original_load_model(self, model_or_path, mesh, data_type)
@@ -79,7 +93,7 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
           ),
       )
 
-      if not mesh.empty and model_mesh != mesh:
+      if not mesh.empty and not meshes_equivalent(model_mesh, mesh):
         role_to_axis_rules = _TUNIX_CLUSTER_CONFIG_ROLE_AXIS_RULES_BY_ID.get(id(self.cluster_config), {}).get(
             "role_to_logical_axis_rule", {}
         )
