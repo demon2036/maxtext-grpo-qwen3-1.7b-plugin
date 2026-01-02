@@ -102,7 +102,11 @@ def patch_tunix_rollout_config_for_maxtext() -> None:
           if role_mesh is mesh:
             role_for_mesh = role
             break
-        axis_rules = role_to_axis_rules.get(role_for_mesh)
+        axis_rules = (
+            role_to_axis_rules.get(role_for_mesh)
+            or role_to_axis_rules.get(rl_cluster_lib.Role.ACTOR)
+            or role_to_axis_rules.get(rl_cluster_lib.Role.REFERENCE)
+        )
 
         graph, state = nnx.split(model_or_path)
         if axis_rules:
