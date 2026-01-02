@@ -5,6 +5,33 @@ import sys
 import transformers
 
 
+def patch_tunix_rollout_config_for_maxtext() -> None:
+  # MaxText's `train_rl.py` may pass newer rollout config kwargs that are not yet
+  # released in the latest `google-tunix` PyPI package. Patch RolloutConfig to
+  # ignore unknown kwargs for forward-compatibility.
+  import inspect
+
+  from tunix.rl.rollout import base_rollout
+
+  rollout_config_cls = base_rollout.RolloutConfig
+  if getattr(rollout_config_cls, "_maxtext_plugin_patched", False):
+    return
+
+  supported = set(inspect.signature(rollout_config_cls).parameters.keys())
+  supported.discard("self")
+
+  original_init = rollout_config_cls.__init__
+
+  def patched_init(self, *args, **kwargs):
+    for key in list(kwargs.keys()):
+      if key not in supported:
+        kwargs.pop(key, None)
+    original_init(self, *args, **kwargs)
+
+  rollout_config_cls.__init__ = patched_init  # type: ignore[method-assign]
+  setattr(rollout_config_cls, "_maxtext_plugin_patched", True)
+
+
 def patch_hf_model_configs_for_qwen3_1p7b() -> None:
   # Tunix's vLLM adapter requires `config.model_name` to exist in MaxText's
   # `HF_MODEL_CONFIGS` mapping. MaxText doesn't currently allow `model_name=qwen3-1.7b`,
@@ -30,6 +57,7 @@ def patch_hf_model_configs_for_qwen3_1p7b() -> None:
 
 
 def main(argv: list[str]) -> int:
+  patch_tunix_rollout_config_for_maxtext()
   patch_hf_model_configs_for_qwen3_1p7b()
 
   from MaxText.rl import train_rl
@@ -40,4 +68,3 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
   raise SystemExit(main(sys.argv))
-
