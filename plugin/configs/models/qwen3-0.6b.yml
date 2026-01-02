@@ -1,0 +1,31 @@
+# Qwen3-1.7B model config (plugin-local)
+#
+# MaxText currently restricts `model_name` to an allowlist and Tunix requires
+# `model_name` to exist in `HF_MODEL_CONFIGS` for vLLM weight mapping.
+# To stay low-intrusion (no upstream patching), we run with:
+#   model_name: qwen3-0.6b
+# but override its model params here to match **Qwen3-1.7B**.
+#
+# Source of truth: https://huggingface.co/Qwen/Qwen3-1.7B/resolve/main/config.json
+
+base_emb_dim: 2048
+base_num_query_heads: 16
+base_num_kv_heads: 8
+base_mlp_dim: 6144
+base_num_decoder_layers: 28
+head_dim: 128
+mlp_activations: ["silu", "linear"] # SwiGLU
+vocab_size: 151936
+
+decoder_block: "qwen3"
+
+normalization_layer_epsilon: 1.0e-6
+rope_max_timescale: 1000000
+
+use_qk_norm: True
+
+logits_via_embedding: True
+normalize_embedding_logits: False
+enable_dropout: False
+
+tokenizer_type: "huggingface"

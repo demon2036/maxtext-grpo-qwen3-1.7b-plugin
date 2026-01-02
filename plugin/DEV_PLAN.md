@@ -6,7 +6,7 @@
 
 ## 0. 约定与前置
 
-- 运行入口使用上游：`python3 -m src.MaxText.rl.train_rl ...`
+- 训练入口仍使用上游 `train_rl.py`，但通过插件 wrapper 先打补丁再调用（见 `plugin/scripts/train_rl_with_qwen3_1p7b_hf_patch.py`）。
 - **不**向 `third_party/maxtext`（上游 MaxText 子模块）打补丁；所有新增放在 `plugin/`。
 - 训练是 smoke test：只跑 10 个 step（通过 `num_batches=10` 达到）。
 
@@ -20,7 +20,8 @@
 
 - `third_party/maxtext`：上游 MaxText（git submodule）
 - `plugin/configs/rl_qwen3_1.7b_grpo_gsm8k_test.yml`：RL 配置（继承上游 `rl.yml`，覆盖为 10-step）
-- `plugin/configs/models/qwen3-1.7b.yml`：Qwen3-1.7B 模型配置（从 HF `config.json` 抽取核心超参）
+- `plugin/configs/models/qwen3-0.6b.yml`：**覆写** allowlisted 的 `qwen3-0.6b`，实际参数为 Qwen3-1.7B（避免改上游 allowlist）
+- `plugin/scripts/train_rl_with_qwen3_1p7b_hf_patch.py`：补丁 `HF_MODEL_CONFIGS`（避免 Tunix/vLLM 映射因 `model_name` 缺失而报错）
 - `plugin/scripts/run_grpo_gsm8k_test.sh`：在 TPU VM 上执行训练
 - `plugin/tpu/*`：TPU 创建、远程 bootstrap 与一键 end-to-end
 
