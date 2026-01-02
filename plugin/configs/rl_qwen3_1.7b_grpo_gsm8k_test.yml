@@ -15,6 +15,14 @@ model_name: "qwen3-0.6b"
 tokenizer_path: "Qwen/Qwen3-1.7B"
 tokenizer_type: "huggingface"
 
+# --- v6e-8: avoid cross-host resharding for vanilla rollout ---
+# v6e-8 exposes 8 chips as 2 VM hosts (4 chips each). MaxText RL splits devices
+# across hosts by default (0.5/0.5) when `use_pathways=True`, but vanilla rollout
+# requires the model graph+params to stay on the same mesh. For smoke tests we
+# colocate trainer+sampler on all devices to avoid device-mesh mismatch.
+trainer_devices_fraction: 1.0
+sampler_devices_fraction: 1.0
+
 # --- Tunix (PyPI) compatibility ---
 # Tunix 0.1.5 expects a mesh axis named "model" for vLLM tensor parallelism.
 # MaxText defaults to "tensor". Add a no-op "model" axis (size=1 here) so both
