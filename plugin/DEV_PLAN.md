@@ -53,7 +53,7 @@
 1) 使用 `gcloud compute tpus tpu-vm create` 创建新 TPU VM：
    - zone：`europe-west4-a`
    - accelerator：`v6e-8`
-   - runtime version（镜像）：v6e 推荐 `v6e-ubuntu-2404`（脚本会先 `gcloud compute tpus tpu-vm versions describe ...` 校验并自动选择）
+   - runtime version（镜像）：v6e 推荐 `v2-alpha-tpuv6e`（脚本会先 `gcloud compute tpus tpu-vm versions describe ...` 校验并自动选择；备选 `v6e-ubuntu-2404`）
    - 如遇到 `Insufficient capacity`，可用 `--preemptible/--spot`（脚本默认先 `--preemptible` 再 `--spot` fallback，或显式设置 `TPU_VM_CREATE_FLAGS=...`）
    - 如反复容量不足，可调 `TPU_CREATE_MAX_ATTEMPTS` / `TPU_CREATE_SLEEP_SECONDS` 让脚本自动重试
 2) 通过 `gcloud compute tpus tpu-vm ssh --command ...` 在 TPU VM 上：
