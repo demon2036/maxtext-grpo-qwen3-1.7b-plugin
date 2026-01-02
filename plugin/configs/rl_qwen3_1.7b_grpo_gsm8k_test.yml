@@ -15,6 +15,25 @@ model_name: "qwen3-0.6b"
 tokenizer_path: "Qwen/Qwen3-1.7B"
 tokenizer_type: "huggingface"
 
+# --- Tunix (PyPI) compatibility ---
+# Tunix 0.1.5 expects a mesh axis named "model" for vLLM tensor parallelism.
+# MaxText defaults to "tensor". Add a no-op "model" axis (size=1 here) so both
+# conventions work without patching upstream MaxText or Tunix internals.
+mesh_axes:
+  - data
+  - stage
+  - fsdp
+  - fsdp_transpose
+  - sequence
+  - context
+  - context_autoregressive
+  - model
+  - tensor
+  - tensor_transpose
+  - tensor_sequence
+  - expert
+  - autoregressive
+
 # --- Smoke-test training length (10 steps) ---
 num_batches: 10
 num_iterations: 1
