@@ -28,6 +28,7 @@ echo "[bootstrap] python: $(python3 --version)"
 
 python3 -m pip install --upgrade pip
 python3 -m pip install --upgrade uv
+export PATH="${HOME}/.local/bin:${PATH}"
 
 echo "[bootstrap] creating venv: ${VENV_DIR}"
 uv venv --python 3.12 --seed "${VENV_DIR}"
