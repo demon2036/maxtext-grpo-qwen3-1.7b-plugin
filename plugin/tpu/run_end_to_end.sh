@@ -31,6 +31,9 @@ REMOTE_PID_FILE="${REMOTE_PID_FILE:-${HOME}/qwen3_grpo_${RUN_NAME}.pid}"
 REMOTE_DONE_FILE="${REMOTE_DONE_FILE:-${HOME}/qwen3_grpo_${RUN_NAME}.done}"
 
 DEFAULT_RUNTIME_CANDIDATES=(tpu-ubuntu2204-base tpu-vm-base tpu-ubuntu2004-base)
+if [[ "${TPU_TYPE}" == v6e-* ]]; then
+  DEFAULT_RUNTIME_CANDIDATES=(v6e-ubuntu-2404 tpu-ubuntu2204-base tpu-vm-base tpu-ubuntu2004-base v2-alpha-tpuv6e)
+fi
 if [[ -n "${TPU_RUNTIME_VERSION}" ]]; then
   if ! gcloud compute tpus tpu-vm versions describe "${TPU_RUNTIME_VERSION}" --zone "${ZONE}" >/dev/null 2>&1; then
     echo "[warn] TPU_RUNTIME_VERSION='${TPU_RUNTIME_VERSION}' not found in zone ${ZONE}; auto-selecting instead"
