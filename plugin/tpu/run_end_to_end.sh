@@ -10,6 +10,7 @@ ZONE="${ZONE:-europe-west4-a}"
 TPU_TYPE="${TPU_TYPE:-v6e-8}"
 TPU_RUNTIME_VERSION="${TPU_RUNTIME_VERSION:-}"
 TPU_VM_CREATE_FLAGS="${TPU_VM_CREATE_FLAGS:-}"
+ALLOW_PREEMPTIBLE_FALLBACK="${ALLOW_PREEMPTIBLE_FALLBACK:-1}"
 ALLOW_SPOT_FALLBACK="${ALLOW_SPOT_FALLBACK:-1}"
 
 if [[ -z "${PROJECT_ID}" ]]; then
@@ -82,17 +83,33 @@ for attempt in $(seq 1 "${TPU_CREATE_MAX_ATTEMPTS}"); do
     break
   fi
 
-  if [[ -z "${TPU_VM_CREATE_FLAGS}" && "${ALLOW_SPOT_FALLBACK}" == "1" ]]; then
-    echo "[warn] create failed; retrying with --spot (set ALLOW_SPOT_FALLBACK=0 to disable)"
-    if gcloud compute tpus tpu-vm create "${TPU_NAME}" \
-      --project "${PROJECT_ID}" \
-      --zone "${ZONE}" \
-      --accelerator-type "${TPU_TYPE}" \
-      --version "${TPU_RUNTIME_VERSION}" \
-      --spot \
-      --quiet; then
-      TPU_CREATED="1"
-      break
+  if [[ -z "${TPU_VM_CREATE_FLAGS}" && ( "${ALLOW_PREEMPTIBLE_FALLBACK}" == "1" || "${ALLOW_SPOT_FALLBACK}" == "1" ) ]]; then
+    if [[ "${ALLOW_PREEMPTIBLE_FALLBACK}" == "1" ]]; then
+      echo "[warn] create failed; retrying with --preemptible (set ALLOW_PREEMPTIBLE_FALLBACK=0 to disable)"
+      if gcloud compute tpus tpu-vm create "${TPU_NAME}" \
+        --project "${PROJECT_ID}" \
+        --zone "${ZONE}" \
+        --accelerator-type "${TPU_TYPE}" \
+        --version "${TPU_RUNTIME_VERSION}" \
+        --preemptible \
+        --quiet; then
+        TPU_CREATED="1"
+        break
+      fi
+    fi
+
+    if [[ "${ALLOW_SPOT_FALLBACK}" == "1" ]]; then
+      echo "[warn] create failed; retrying with --spot (set ALLOW_SPOT_FALLBACK=0 to disable)"
+      if gcloud compute tpus tpu-vm create "${TPU_NAME}" \
+        --project "${PROJECT_ID}" \
+        --zone "${ZONE}" \
+        --accelerator-type "${TPU_TYPE}" \
+        --version "${TPU_RUNTIME_VERSION}" \
+        --spot \
+        --quiet; then
+        TPU_CREATED="1"
+        break
+      fi
     fi
   fi
 
