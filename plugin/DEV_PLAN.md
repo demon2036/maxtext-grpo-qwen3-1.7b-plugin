@@ -40,6 +40,10 @@
 - `train_fraction: 1.0`
 - `num_epoch: 1`
 
+为保证 v6e-8 上 vanilla rollout 稳定：
+- `trainer_devices_fraction: 1.0`、`sampler_devices_fraction: 1.0`（避免按 host 分裂设备导致 mesh 不一致）
+- `kv_cache_buffer >= max_prefill_predict_length`（避免 `Total sampling steps ... must be less than the cache size ...`）
+
 ---
 
 ## 3. GitHub 推送
