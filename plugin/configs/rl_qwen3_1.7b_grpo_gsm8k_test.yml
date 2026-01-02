@@ -1,0 +1,28 @@
+# Plugin RL config: Qwen3-1.7B GRPO on GSM8K (10-step smoke test)
+#
+# - Inherits upstream MaxText RL config.
+# - Loads a plugin-local model config at `plugin/configs/models/qwen3-1.7b.yml`.
+#
+# NOTE: Pass `run_name=... base_output_directory=...` via CLI.
+
+base_config: "../../third_party/maxtext/src/MaxText/configs/rl.yml"
+
+# --- Model / Tokenizer ---
+model_name: "qwen3-1.7b"
+tokenizer_path: "Qwen/Qwen3-1.7B"
+tokenizer_type: "huggingface"
+
+# --- Smoke-test training length (10 steps) ---
+num_batches: 10
+num_iterations: 1
+train_fraction: 1.0
+num_epoch: 1
+
+# Keep eval short
+num_test_batches: 2
+num_eval_passes: 1
+
+# Reduce noise
+debug:
+  rl: False
+
