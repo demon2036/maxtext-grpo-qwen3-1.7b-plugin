@@ -53,6 +53,7 @@
 1) 使用 `gcloud compute tpus tpu-vm create` 创建新 TPU VM：
    - zone：`europe-west4-a`
    - accelerator：`v6e-8`
+   - runtime version（镜像）：推荐 `tpu-ubuntu2204-base`（脚本会先 `gcloud compute tpus tpu-vm versions describe ...` 校验并自动选择）
    - 如遇到 `Insufficient capacity`，可用 `--spot`（脚本默认自动 fallback，或显式设置 `TPU_VM_CREATE_FLAGS=--spot`）
 2) 通过 `gcloud compute tpus tpu-vm ssh --command ...` 在 TPU VM 上：
    - `git clone --recursive` 本仓库

@@ -8,6 +8,7 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 ZONE="${ZONE:-europe-west4-a}"
 TPU_TYPE="${TPU_TYPE:-v6e-8}"
+TPU_RUNTIME_VERSION="${TPU_RUNTIME_VERSION:-}"
 TPU_VM_CREATE_FLAGS="${TPU_VM_CREATE_FLAGS:-}"
 ALLOW_SPOT_FALLBACK="${ALLOW_SPOT_FALLBACK:-1}"
 
@@ -29,7 +30,27 @@ REMOTE_LOG_FILE="${REMOTE_LOG_FILE:-${HOME}/qwen3_grpo_${RUN_NAME}.log}"
 REMOTE_PID_FILE="${REMOTE_PID_FILE:-${HOME}/qwen3_grpo_${RUN_NAME}.pid}"
 REMOTE_DONE_FILE="${REMOTE_DONE_FILE:-${HOME}/qwen3_grpo_${RUN_NAME}.done}"
 
-echo "[gcloud] project=${PROJECT_ID} zone=${ZONE} tpu=${TPU_NAME} type=${TPU_TYPE}"
+DEFAULT_RUNTIME_CANDIDATES=(tpu-ubuntu2204-base tpu-vm-base tpu-ubuntu2004-base)
+if [[ -n "${TPU_RUNTIME_VERSION}" ]]; then
+  if ! gcloud compute tpus tpu-vm versions describe "${TPU_RUNTIME_VERSION}" --zone "${ZONE}" >/dev/null 2>&1; then
+    echo "[warn] TPU_RUNTIME_VERSION='${TPU_RUNTIME_VERSION}' not found in zone ${ZONE}; auto-selecting instead"
+    TPU_RUNTIME_VERSION=""
+  fi
+fi
+if [[ -z "${TPU_RUNTIME_VERSION}" ]]; then
+  for candidate in "${DEFAULT_RUNTIME_CANDIDATES[@]}"; do
+    if gcloud compute tpus tpu-vm versions describe "${candidate}" --zone "${ZONE}" >/dev/null 2>&1; then
+      TPU_RUNTIME_VERSION="${candidate}"
+      break
+    fi
+  done
+fi
+if [[ -z "${TPU_RUNTIME_VERSION}" ]]; then
+  echo "[error] No TPU runtime version found in zone ${ZONE}. Try: gcloud compute tpus tpu-vm versions list --zone ${ZONE}" >&2
+  exit 3
+fi
+
+echo "[gcloud] project=${PROJECT_ID} zone=${ZONE} tpu=${TPU_NAME} type=${TPU_TYPE} runtime_version=${TPU_RUNTIME_VERSION}"
 
 gcloud services enable compute.googleapis.com tpu.googleapis.com --project "${PROJECT_ID}" --quiet
 
@@ -38,7 +59,7 @@ if ! gcloud compute tpus tpu-vm create "${TPU_NAME}" \
   --project "${PROJECT_ID}" \
   --zone "${ZONE}" \
   --accelerator-type "${TPU_TYPE}" \
-  --version "tpu-ubuntu2204-base" \
+  --version "${TPU_RUNTIME_VERSION}" \
   ${TPU_VM_CREATE_FLAGS} \
   --quiet; then
   if [[ -z "${TPU_VM_CREATE_FLAGS}" && "${ALLOW_SPOT_FALLBACK}" == "1" ]]; then
@@ -47,7 +68,7 @@ if ! gcloud compute tpus tpu-vm create "${TPU_NAME}" \
       --project "${PROJECT_ID}" \
       --zone "${ZONE}" \
       --accelerator-type "${TPU_TYPE}" \
-      --version "tpu-ubuntu2204-base" \
+      --version "${TPU_RUNTIME_VERSION}" \
       --spot \
       --quiet
   else
